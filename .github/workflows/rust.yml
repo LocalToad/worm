@@ -18,6 +18,8 @@ jobs:
     - uses: actions/checkout@v4
     - name: Print source directory to check Cargo.toml
       run: cd /home/runner/work/worm/worm/worm
+    - name: print
+      run: ls
     - name: Build
       run: cargo build --verbose
     - name: Run tests
