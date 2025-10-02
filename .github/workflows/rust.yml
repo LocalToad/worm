@@ -22,5 +22,6 @@ jobs:
       working-directory: ./worm
       run: cargo build --verbose
     - name: Run tests
+      working-directory: ./worm
       run: cargo test --verbose
 
