@@ -17,7 +17,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Print source directory to check Cargo.toml
-      run: cd /home/runner/work/worm/worm/worm
+      run: cd worm
     - name: print
       run: ls
     - name: Build
