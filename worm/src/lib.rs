@@ -18,6 +18,8 @@ impl Display for Error {
     }
 }
 
+#[derive(Debug)]
+#[derive(PartialEq)]
 pub struct Matrix {
     rows: usize,
     cols: usize,
@@ -154,7 +156,7 @@ impl Matrix {
         }
         Ok(new_matrix)
     }
-    pub fn float_mult(&mut self, n: f64) -> Result<Matrix, Error> {
+    pub fn float_mul(&mut self, n: f64) -> Result<Matrix, Error> {
         let mut new_matrix = Matrix::new(self.rows, self.cols);
         for row in 0..self.rows {
             for col in 0..self.cols {
@@ -165,3 +167,166 @@ impl Matrix {
     }
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_matrix_row() {
+        let matrix = Matrix::new(2, 3);
+        assert_eq!(matrix.rows, 2);
+    }
+
+    #[test]
+    fn test_matrix_col() {
+        let matrix = Matrix::new(2, 3);
+        assert_eq!(matrix.cols, 3);
+    }
+
+    #[test]
+    fn test_matrix_set_set() {
+        let mut matrix = Matrix::new(2, 2);
+        assert_eq!(matrix.set(0,0, 1.0), true);
+    }
+
+    #[test]
+    fn test_matrix_get() -> Result<(), Error> {
+        let mut matrix = Matrix::new(2, 2);
+        matrix.set(0,0, 1.0);
+        assert_eq!(matrix.get(0,0)?, 1.0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_matrix_add() -> Result<(), Error> {
+        let mut ans = Matrix::new(2, 2);
+        ans.set(0,0, 5.0);
+        ans.set(1,0,5.0);
+        ans.set(0,1,5.0);
+        ans.set(1,1,5.0);
+
+        let mut matrix_0 = Matrix::new(2, 2);
+        matrix_0.set(0,0, 1.0);
+        matrix_0.set(0,1, 2.0);
+        matrix_0.set(1,0, 3.0);
+        matrix_0.set(1,1, 4.0);
+
+        let mut matrix_1 = Matrix::new(2, 2);
+        matrix_1.set(0,0, 4.0);
+        matrix_1.set(0,1, 3.0);
+        matrix_1.set(1,0, 2.0);
+        matrix_1.set(1,1, 1.0);
+
+        let result = matrix_0.add(matrix_1)?;
+        assert_eq!(result, ans);
+        Ok(())
+    }
+
+    #[test]
+    fn test_matrix_sub() -> Result<(), Error> {
+        let mut ans = Matrix::new(2, 2);
+        ans.set(0,0, 1.0);
+        ans.set(1,0, 1.0);
+        ans.set(0,1, 1.0);
+        ans.set(1,1, 1.0);
+
+        let mut matrix_0 = Matrix::new(2, 2);
+        matrix_0.set(0,0, 2.0);
+        matrix_0.set(0,1, 3.0);
+        matrix_0.set(1,0, 4.0);
+        matrix_0.set(1,1, 5.0);
+
+        let mut matrix_1 = Matrix::new(2, 2);
+        matrix_1.set(0,0, 1.0);
+        matrix_1.set(1,0, 2.0);
+        matrix_1.set(0,1, 3.0);
+        matrix_1.set(1,0, 4.0);
+
+        let result = matrix_0.sub(matrix_1)?;
+        assert_eq!(result, ans);
+        Ok(())
+    }
+
+    #[test]
+    fn test_matrix_mul() -> Result<(), Error> {
+        let mut ans = Matrix::new(2, 2);
+        ans.set(0,0, 2.0);
+        ans.set(1,0, 4.0);
+        ans.set(0,1, 6.0);
+        ans.set(1,1, 8.0);
+
+        let mut matrix_0 = Matrix::new(2, 2);
+        matrix_0.set(0,0, 2.0);
+        matrix_0.set(0,1, 2.0);
+        matrix_0.set(1,0, 2.0);
+        matrix_0.set(1,1, 2.0);
+
+        let mut matrix_1 = Matrix::new(2, 2);
+        matrix_1.set(0,0, 1.0);
+        matrix_1.set(0,1, 2.0);
+        matrix_1.set(1,0, 3.0);
+        matrix_1.set(1,1, 4.0);
+
+        let result = matrix_0.mul(matrix_1)?;
+        assert_eq!(result, ans);
+        Ok(())
+    }
+
+    #[test]
+    fn test_matrix_float_add() -> Result<(), Error> {
+        let mut ans = Matrix::new(2, 2);
+        ans.set(0, 0, 2.0);
+        ans.set(0, 1, 3.0);
+        ans.set(1, 0, 4.0);
+        ans.set(1, 1, 5.0);
+
+        let mut matrix = Matrix::new(2, 2);
+        matrix.set(0, 0, 1.0);
+        matrix.set(0, 1, 2.0);
+        matrix.set(1, 0, 3.0);
+        matrix.set(1, 1, 4.0);
+
+        let n = 1.0;
+        assert_eq!(ans.float_add(n)?, ans);
+        Ok(())
+    }
+
+    #[test]
+    fn test_matrix_float_sub() -> Result<(), Error> {
+        let mut ans = Matrix::new(2, 2);
+        ans.set(0,0, 1.0);
+        ans.set(0,1, 2.0);
+        ans.set(1,0, 3.0);
+        ans.set(1,1, 4.0);
+
+        let mut matrix = Matrix::new(2, 2);
+        matrix.set(0,0, 2.0);
+        matrix.set(0,1, 3.0);
+        matrix.set(1,0, 4.0);
+        matrix.set(1,1, 5.0);
+
+        let n: f64 = 1.0;
+        assert_eq!(ans.float_sub(n)?, ans);
+        Ok(())
+    }
+
+    #[test]
+    fn test_matrix_float_mul() -> Result<(), Error> {
+        let mut ans = Matrix::new(2, 2);
+        ans.set(0, 0, 2.0);
+        ans.set(0, 1, 4.0);
+        ans.set(1, 0, 6.0);
+        ans.set(1, 1, 8.0);
+
+        let mut matrix = Matrix::new(2, 2);
+        matrix.set(0, 0, 1.0);
+        matrix.set(0, 1, 2.0);
+        matrix.set(1, 0, 3.0);
+        matrix.set(1, 1, 4.0);
+
+        let n = 2.0;
+        assert_eq!(ans.float_mul(n)?, ans);
+        Ok(())
+    }
+}
