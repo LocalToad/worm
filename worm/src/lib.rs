@@ -1,4 +1,6 @@
 use std::fmt::{Display, Formatter, Result as FmtResult};
+use rand::{thread_rng, Rng};
+use crate::NeuronType::{Hidden, Output};
 
 #[derive(Debug)]
 pub enum Error{
@@ -25,6 +27,8 @@ pub struct Matrix {
     cols: usize,
     data: Vec<f64>,
 }
+
+
 
 impl Matrix {
     /// Creates a new Matrix with the specified dimensions, initialized with zeros.
@@ -167,9 +171,112 @@ impl Matrix {
         }
         Ok(new_matrix)
     }
+
+    pub fn inv_vec_add(&mut self, vec: Vec<f64>) -> Result<Matrix, Error> {
+        let mut new_matrix = Matrix::new(self.rows, self.cols);
+        for row in 0..self.rows {
+            for col in 0..self.cols {
+                new_matrix.set(row,col,self.get(row, col)? + vec[row]);
+            }
+        }
+        Ok(new_matrix)
+    }
+
+    pub fn clone(&self) -> Matrix {
+        let mut new_matrix = Matrix::new(self.rows, self.cols);
+        for row in 0..self.rows {
+            for col in 0..self.cols {
+                new_matrix.set(row,col,self.get(row, col).unwrap().clone());
+            }
+        }
+        new_matrix
+    }
 }
+trait Neuron {
+    fn new(&self, inputs: usize, outputs: usize, id:i8) -> Self;
+    fn fire(&mut self, input:Matrix) -> Result<Matrix, Error>;
+}
+struct Input{
+    inputs: usize,
+    outputs: usize,
+    weights: Matrix,
+    bias: Vec<f64>,
+    activation: i8 //0 for Relu, 1 for Leaky Relu, 2 for sigmoid, 3 for tanh
+}
+struct Hidden{
+    inputs: usize,
+    outputs: usize,
+    weights: Matrix,
+    bias: Vec<f64>,
+    activation: i8 //0 for Relu, 1 for Leaky Relu, 2 for sigmoid, 3 for tanh
+}
+struct Output{
+    inputs: usize,
+    outputs: usize,
+    weights: Matrix,
+    bias: Vec<f64>,
+    func: i8 //0 for Relu, 1 for Leaky Relu, 2 for sigmoid, 3 for softmax
+}
+impl Neuron for Input {
+    fn new(&self, inputs: usize, outputs: usize, id:i8) -> Input {
+        let mut weights = Matrix::new(outputs, inputs);
+        for row in 0..weights.rows {
+            for col in 0..weights.cols {
+                let mut n = thread_rng();
+                weights.set(row,col,n.r#gen());
+            }
+        }
+        let mut bias = vec![0.0; outputs as usize];
+        for output in 0.. bias.len() {
+            let mut n = thread_rng();
+            bias[output] = n.r#gen();
+        }
+        Input {inputs, outputs, weights, bias, activation: id}
+    }
+    fn fire(&mut self, input:f64) -> Result<Matrix, Error> {
+        let mut output = Matrix::new(self.inputs, self.outputs);
+        output =  output.add(self.weights.clone())?.float_mul(input)?.inv_vec_add(self.bias.clone())?;
+        Ok(output)
+    }
+}
+impl Neuron for Hidden {
+    fn new(&self, inputs: usize, outputs: usize, id:i8) -> Hidden {
+        let mut weights = Matrix::new(outputs, inputs);
+        for row in 0..weights.rows {
+            for col in 0..weights.cols {
+                let mut n = thread_rng();
+                weights.set(row,col,n.r#gen());
+            }
+        }
+        let mut bias = vec![0.0; outputs as usize];
+        for output in 0.. bias.len() {
+            let mut n = thread_rng();
+            bias[output] = n.r#gen();
+        }
+        Hidden {inputs, outputs, weights, bias, activation: id}
+    }
 
-
+    fn fire(&mut self, input:Matrix) -> Result<Matrix, Error> {
+        let mut output = Matrix::new(self.outputs, self.inputs);
+        output = output.add(self.weights.clone())?.mul(input)?.inv_vec_add(self.bias.clone())?;
+        Ok(output)
+    }
+}
+enum NeuronType {
+    Hidden(Hidden),
+    Input(Input),
+    Output(Output),
+}
+struct neurogenesis;
+impl neurogenesis {
+    pub fn new(type:NeuronType) -> Box<dyn Neuron>{
+        match type {
+            NeuronType::Input => Box::new(Input);
+            NeuronType::Hidden => Box::new(Hidden);
+            NeuronType::Output => Box::new(Output);
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
