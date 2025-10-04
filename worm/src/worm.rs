@@ -1,8 +1,10 @@
+mod stocks;
+
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use rand::{thread_rng, Rng};
-use crate::NeuronType::{Hidden, Output};
-
+use std::f64::consts::E;
 #[derive(Debug)]
+#[derive(Clone)]
 pub enum Error{
     TypeErr(String),
     NoneErr(String),
@@ -19,17 +21,22 @@ impl Display for Error {
         }
     }
 }
-
+impl Clone for Layer {
+    fn clone(&self) -> Layer {
+        let mut new = Layer::new(self.inputs, self.outputs, self.function);
+        new.weights = self.weights.clone();
+        new.bias = self.bias.clone();
+        new
+    }
+}
 #[derive(Debug)]
 #[derive(PartialEq)]
+#[derive(Clone)]
 pub struct Matrix {
     rows: usize,
     cols: usize,
     data: Vec<f64>,
 }
-
-
-
 impl Matrix {
     /// Creates a new Matrix with the specified dimensions, initialized with zeros.
     pub fn new(rows: usize, cols: usize) -> Self {
@@ -182,6 +189,16 @@ impl Matrix {
         Ok(new_matrix)
     }
 
+    pub fn inv_vec_mul(&mut self, vec: Vec<f64>) -> Result<Matrix, Error> {
+        let mut new_matrix = Matrix::new(self.rows, self.cols);
+        for row in 0..self.rows {
+            for col in 0..self.cols {
+                new_matrix.set(row,col,self.get(row, col)? * vec[col]);
+            }
+        }
+        Ok(new_matrix)
+    }
+
     pub fn clone(&self) -> Matrix {
         let mut new_matrix = Matrix::new(self.rows, self.cols);
         for row in 0..self.rows {
@@ -192,88 +209,88 @@ impl Matrix {
         new_matrix
     }
 }
-trait Neuron {
-    fn new(&self, inputs: usize, outputs: usize, id:i8) -> Self;
-    fn fire(&mut self, input:Matrix) -> Result<Matrix, Error>;
-}
-struct Input{
+pub struct Layer {
     inputs: usize,
     outputs: usize,
+    function:i8, //0 for Relu, 1 for Leaky Relu, 2 for Sigmoid, 3 for Tanh, 4 for Softmax
     weights: Matrix,
-    bias: Vec<f64>,
-    activation: i8 //0 for Relu, 1 for Leaky Relu, 2 for sigmoid, 3 for tanh
+    bias: Matrix //i know you think this will be better as a vec, it wont,
+    // i have followed that thought train for hours and it always results in this needing to be a vec
 }
-struct Hidden{
-    inputs: usize,
-    outputs: usize,
-    weights: Matrix,
-    bias: Vec<f64>,
-    activation: i8 //0 for Relu, 1 for Leaky Relu, 2 for sigmoid, 3 for tanh
-}
-struct Output{
-    inputs: usize,
-    outputs: usize,
-    weights: Matrix,
-    bias: Vec<f64>,
-    func: i8 //0 for Relu, 1 for Leaky Relu, 2 for sigmoid, 3 for softmax
-}
-impl Neuron for Input {
-    fn new(&self, inputs: usize, outputs: usize, id:i8) -> Input {
-        let mut weights = Matrix::new(outputs, inputs);
-        for row in 0..weights.rows {
-            for col in 0..weights.cols {
-                let mut n = thread_rng();
-                weights.set(row,col,n.r#gen());
-            }
-        }
-        let mut bias = vec![0.0; outputs as usize];
-        for output in 0.. bias.len() {
-            let mut n = thread_rng();
-            bias[output] = n.r#gen();
-        }
-        Input {inputs, outputs, weights, bias, activation: id}
+impl Layer {
+    fn new(inputs:usize, outputs:usize, function:i8) -> Layer {
+        let weights = Matrix::new(inputs, outputs);//i know the internet says (output,input)
+        //we are keeping this matrix in its inverted form bc fuck writing a method that inverts a matrix
+        let bias = Matrix::new(1, outputs); //same for this fucker bc it make the shit work
+        Layer {inputs, outputs, function, weights, bias}
     }
-    fn fire(&mut self, input:f64) -> Result<Matrix, Error> {
-        let mut output = Matrix::new(self.inputs, self.outputs);
-        output =  output.add(self.weights.clone())?.float_mul(input)?.inv_vec_add(self.bias.clone())?;
+    fn randomize(&mut self) -> bool {
+        for output in 0..self.outputs {
+            for input in 0..self.inputs {
+                let mut n = thread_rng();
+                self.weights.set(output, input, n.r#gen());
+            }
+            let mut n = thread_rng();
+            self.bias.set(output, 0, n.r#gen());
+        }
+        true
+    }
+    fn forward_prop(&self, input: Matrix) -> Result<Matrix, Error> {
+        let mut output = Matrix::new(1, self.outputs);
+        output.add(input.clone())?.mul(self.weights.clone())?.add(self.bias.clone())?;
         Ok(output)
     }
 }
-impl Neuron for Hidden {
-    fn new(&self, inputs: usize, outputs: usize, id:i8) -> Hidden {
-        let mut weights = Matrix::new(outputs, inputs);
-        for row in 0..weights.rows {
-            for col in 0..weights.cols {
-                let mut n = thread_rng();
-                weights.set(row,col,n.r#gen());
-            }
+
+struct Model {
+    inputs: usize,
+    outputs: usize,
+    layers: usize,
+    input: Layer,
+    hidden: Vec<Layer>,
+    output: Layer,
+}
+pub struct ModelBuilder {
+    inputs: usize,
+    outputs: usize,
+    input: Option<Layer>,
+    hidden: Vec<Layer>,
+    output: Option<Layer>,
+}
+impl ModelBuilder {
+    pub fn new(inputs:usize, outputs:usize) -> Self {
+        Self {inputs, outputs, input: None, hidden: vec![], output: None}
+    }
+    pub fn input(mut self, outputs:usize, function:i8) -> Self {
+        let inputs = self.inputs;
+        self.input = Some(Layer::new(inputs, outputs, function));
+        self
+    }
+    pub fn hidden(mut self, outputs:usize, function:i8) -> Self {
+        let mut inputs: usize = 0;
+        if self.hidden.len() == 0 {
+            inputs = self.input.clone().unwrap().outputs
+        } else {
+            inputs = self.hidden[self.hidden.len()-1].outputs;
         }
-        let mut bias = vec![0.0; outputs as usize];
-        for output in 0.. bias.len() {
-            let mut n = thread_rng();
-            bias[output] = n.r#gen();
-        }
-        Hidden {inputs, outputs, weights, bias, activation: id}
+        self.hidden.push(Layer::new(inputs, outputs, function));
+        self
+    }
+    pub fn output(mut self, outputs: usize, function:i8) -> Self {
+        let inputs = self.hidden[self.hidden.len()-1].outputs;
+        self.output = Some(Layer::new(inputs, outputs, function));
+        self
     }
 
-    fn fire(&mut self, input:Matrix) -> Result<Matrix, Error> {
-        let mut output = Matrix::new(self.outputs, self.inputs);
-        output = output.add(self.weights.clone())?.mul(input)?.inv_vec_add(self.bias.clone())?;
-        Ok(output)
-    }
-}
-enum NeuronType {
-    Hidden(Hidden),
-    Input(Input),
-    Output(Output),
-}
-struct neurogenesis;
-impl neurogenesis {
-    pub fn new(type:NeuronType) -> Box<dyn Neuron>{
-        match type {
-            NeuronType::Input => Box::new(Input);
-            NeuronType::Hidden => Box::new(Hidden);
-            NeuronType::Output => Box::new(Output);
+    pub fn build(self) -> Model {
+
+        Model {
+            inputs: self.inputs,
+            outputs: self.outputs,
+            layers: self.hidden.len()+2,
+            input: self.input.unwrap(),
+            hidden: self.hidden,
+            output: self.output.unwrap(),
         }
     }
 }
