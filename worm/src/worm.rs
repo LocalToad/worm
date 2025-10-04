@@ -1,4 +1,3 @@
-mod stocks;
 
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use rand::{thread_rng, Rng};
@@ -241,7 +240,6 @@ impl Layer {
         Ok(output)
     }
 }
-
 struct Model {
     inputs: usize,
     outputs: usize,
@@ -249,6 +247,89 @@ struct Model {
     input: Layer,
     hidden: Vec<Layer>,
     output: Layer,
+    loss: i8,//0 for Mean Squared Error (MSE), 1 for Mean Absolute Error (MAE),
+    //2 for Mean Absolute Percentage Error (MAPE), 3 for Binary Cross-Entropy Loss (BCEL),
+    //4 for Categorical Cross-Entropy Loss (CCEL)
+    optimizer: i8,//0 for Gradient Decent (GD), 1 for Stochastic Gradient Decent (SGD),
+    //2 for Adaptive Gradient Algorithm (Adagrad), 3 for Root Mean Square Propogation (RMSprop)
+    //4 for Adaptive Delta (AD), 5 for Adaptive Moment Estimation (Adam), 6 for Adamax,
+    //7 for Nesterov Accelerated Gradient (NAG), 8 for Nesterov Adam (Nadam)
+}
+impl Model {
+    fn think(self, input: Matrix) -> Result<Model, Error> {
+        let mut output = Matrix::new(self.outputs, 1);
+        output = self.output.forward_prop(self.black_box(self.input.forward_prop(input)?))?;
+    }
+    pub fn black_box(self, input: Matrix) -> Result<Matrix, Error> {
+        let mut output = Matrix::new(input.rows, input.cols);
+        for layer in 0..self.layers-3 {
+            if layer = 0 {
+                output = self.hidden[layer].forward_prop(input.clone())?;
+            } else {
+                output = self.hidden[layer].forward_prop(output)?;
+            }
+        }
+        Ok(output)
+    }
+    pub fn train(&mut self, real: Matrix, guess: Matrix) -> bool {
+
+    }
+    //0 MSE Error = SUM{(guess - real)^2}/n
+    //1 MAE Error = SUM{|guess - real|}/n
+    //2 MAPE Error = (|guess - real| / real) * 100%
+    //3 BCEL Loss = real * log(guess) + (1 - real) * log(1 - guess)
+    //4 CCEL Loss = - SUM{real[i] * log(guess[i])} ONLY WORKS WITH SOFTMAX ACTIVATION
+
+    //DERIVATIVES OF ABOVE FUNCTIONS
+    //0 MSE (2/n) * (guess - real)
+    //1 MAE 1 if guess > real, 0 if real > guess
+    //2 MAPE 1 / (n * guess) if guess > real, -1 / (n * guess) if real > guess
+    //3 BCEL -real / guess + (1 - real) / (1 - guess)
+    //4 CCEL guess - real
+
+    // a = alpha = learning rate(0 < float < 1 - closer to 1 = overstepping, closer to 0 = takes too long, commonly 0.001),
+    // E = epsilon = divide by 0 prevention(positive float near 0, commonly 10^-8),
+    // b = beta = decay(commonly 0.9 or 0.999)
+    // g = Gradient
+    // e = Squared Decaying Average
+    // d = Parameter Update Magnitude
+    // u = Infinity Norm
+    // L = Lookahead
+
+    //0 GD i(t) = i(t-1) - (a * g) Once per Epoch
+    //1 SGD i(t) = i(t-1) - (a * g) Once per Step in Epoch
+    //2 Adagrad i(t) = i(t-1) - (a / (sqrt{G[i]} + E)) * g(i(t-1))
+        // G[i] += g(i)^2 every Epoch
+    //3 RMSprop i(t) = i(t-1) - (a * g[i][t-1] / (sqrt{e_g[i]} + E)
+        //e_g[i][t] = b * SGA[i][t-1] + 1 - b * g[i]^2
+    //4 AD i[t] = i[t-1] + d[i]
+        //e_g[i][t] = b * SGA[i][t-1] + 1 - b * g[i]^2
+        //d[i][t] = d[i][t-1] - (sqrt{e_d[i]}[t-1] / sqrt{e_g}[t] * e[i]
+        //e_d[i][t+1] = b * e_d[i][t] + (1 - b) * d[i][t]^2
+    //5 Adam i[t] = i[t-1] - a * (m / (sqrt{v} + E))
+        //b1 often 0.9 and b2 often 0.999
+        //e_g1[i][t] = b1 * e_g1[i][t-1] + (1 - b1) * g[i]
+        //e_g2[i][t] = b2 * e_g2[i][t-1] + (1 - b2) * g[i]^2
+        //bias correction bc the starting momentum is assumed 0(which is not true)
+            //corrected e_g1 = m = e_g1[i][t] / (1 - b1^t)
+            //corrected e_g2 = v = e_g2[i][t] / (1 - b2^t)
+    //6 Adamax i[t] = i[t-1] - (a * m[i][t]) / (u[i][t] + E)
+        //e_g1[i][t] = b1 * e_g1[i][t-1] + (1 - b1) * g[i]
+        //u[i][t] = max{(b2 * u[i][t-1]), abs{g}}
+        //m[i][t] = e_g1[i][t] / (1 - b1^t)
+    //7 NAG i[t] = L_i - (a * L_d[i])
+        //L_i= i[t] - (b * d[i][t-1])
+        //L_g[i] = L_i - (b * d[i][t])
+        //L_d[i] = (b * d[i][t]) + L_g[i]
+    //8 Nadam i[t] = L_i - a * ((b1 * m[i][t-1]) + ((1 - b1) * L_g[i] / (1 - b1^t)) / (sqrt{v[i][t-1]} + E))
+        //L_i= i[t] - (b * d[i][t-1])
+        //L_g[i] = L_i - (b * d[i][t])
+        //e_g1[i][t] = b1 * e_g1[i][t-1] + (1 - b1) * g
+        //e_g2[i][t] = b2 * e_g2[i][t-1] + (1 - b2) * g[i]^2
+        //m[i][t] = e_g1[i][t] / (1 - b1^t)
+        //u[i][t] = max{(b2 * u[i][t-1]), abs{g}}
+
+    //please let all this hard work be useful my brain is frying
 }
 pub struct ModelBuilder {
     inputs: usize,
@@ -282,7 +363,7 @@ impl ModelBuilder {
         self
     }
 
-    pub fn build(self) -> Model {
+    pub fn build(self, model_type: ModelType, loss: i8) -> Model {
 
         Model {
             inputs: self.inputs,
@@ -291,6 +372,7 @@ impl ModelBuilder {
             input: self.input.unwrap(),
             hidden: self.hidden,
             output: self.output.unwrap(),
+            loss,
         }
     }
 }
