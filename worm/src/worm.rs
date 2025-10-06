@@ -111,7 +111,6 @@ impl Matrix {
             for row in 0.. self.rows {
                 for col in 0.. self.cols {
                     let value = self.get(row, col)? - matrix.get(row, col)?;
-                    println!("{}", value);
                     new_matrix.set(row,col,value);
                 }
             }
@@ -126,6 +125,7 @@ impl Matrix {
     }
 
     pub fn mul(&mut self, matrix: Matrix) -> Result<Matrix, Error> {
+    //this is the most for loops nested in one place that i have ever written, i bet this runs like shit
         if self.cols == matrix.rows {
             let mut new_matrix = Matrix::new(self.rows, matrix.cols);
             for row in 0.. new_matrix.rows {
@@ -207,14 +207,147 @@ impl Matrix {
         }
         new_matrix
     }
+
+
+    //variable conventions are listed elsewhere, you can find them, i believe in you
+
+    //Activation Functions
+    //0 Relu = {x > 0: x, x <= 0: 0}
+    pub fn relu(&mut self) -> Result<Matrix, Error> {
+        for row in 0..self.rows {
+            for col in 0..self.cols {
+                if self.get(row, col)? != 0.0 {} else {self.set(row, col, 0.0)?;}
+            }
+        }
+    }
+    //1 Leaky Relu = {x > 0: x, x < 0: x * a}
+    pub fn leaky_relu(&mut self, a:f64) -> Result<Matrix, Error> {
+        for row in 0..self.rows {
+            for col in 0..self.cols {
+                if self.get(row, col)? != 0.0 {} else {self.set(row, col, self.get(row, col)? * a)?;}
+            }
+        }
+    }
+    //2 Sigmoid = 1 / (1 + E^-x)
+    pub fn sigmoid(&mut self) -> Result<Matrix, Error> {
+        for row in 0..self.rows {
+            for col in 0..self.cols {
+                self.set(row, col, 1/(1-self.get(row, col)?.exp()))?;
+            }
+        }
+    }
+    //3 Tanh = (E^x - E^-x) / (E^x + E^-x)
+    pub fn tanh(&mut self) -> Result<Matrix, Error> {
+        for row in 0..self.rows {
+            for col in 0..self.cols {
+                self.set(row, col, (self.get(row, col).exp() - (-self.get(row, col)).exp()) / (self.get(row, col).exp() + (-self.get(row, col)).exp()))?;
+            }
+        }
+    }
+    //4 Softmax = E^x[i] / SUM{E^x} E can be replaced with b for b > 0, as b approaches 0 the predictions will be more random, as b approaches Inf becomes sharper
+    pub fn softmax(&mut self, b: f64) -> Result<Matrix, Error> {
+        let mut sum = 0.0;
+        for row in 0..self.rows {
+            for col in 0..self.cols {
+                sum += self.get(row, col)?.pow(b);
+            }
+        }
+        for row in 0..self.rows {
+            for col in 0..self.cols {
+                self.set(row, col, self.get(row, col)?.pow(b) / sum)?;
+            }
+        }
+    }
+
+    //Derivatives of the Activation Functions
+    //0 Relu = {x > 0: 1, x <= 0: 0}
+    pub fn derv_relu(&self) -> Result<Matrix, Error> {
+        let mut da = Matrix::new(self.rows, self.cols);
+        for row in 0..self.rows {
+            for col in 0..self.cols {
+                if self.get(row, col)? != 0.0 {
+                    da.set(row,col, 1)
+                } else {da.set(row, col, 0)}
+            }
+        }
+    }
+    //1 Leaky Relu = {x > 0: 1, x < 0: a}
+    pub fn derv_leaky_relu(&mut self, a: f64) -> Result<Matrix, Error> {
+        let mut da = Matrix::new(self.rows, self.cols);
+        for row in 0..self.rows {
+            for col in 0..self.cols {
+                if self.get(row, col)? != 0.0 {
+                    da.set(row,col, 1)
+                } else {da.set(row, col, a}
+            }
+        }
+    }
+    //2 Sigmoid = x * (1 - x)
+    pub fn derv_sigmoid(&self) -> Result<Matrix, Error> {
+        let mut da = Matrix::new(self.rows, self.cols);
+        for row in 0..self.rows {
+            for col in 0..self.cols {
+                da.set(row,col, self.get(row,col)?*(1-self.get(row, col)?))
+            }
+        }
+    }
+    //3 Tanh = 1 - (E^x - E^-x) / (E^x + E^-x)^2
+    pub fn derv_tanh(&self, a:f64) -> Result<Matrix, Error> {
+        let mut da = Matrix::new(self.rows, self.cols);
+        for row in 0..self.rows {
+            for col in 0..self.cols {
+                da.set(row,col, (1 - (a.powf(self.get(row,col)?) - a.powf(-self.get(row,col)?))) / (a.powf(self.get(row,col)?) + a.powf(-self.get(row,col)?)).powf(2))
+            }
+        }
+    }
+    //4 Softmax, baked into CCEL derviative, just use that pwease
+
+    //Loss Functions
+    //0 MSE Error = SUM{(guess - real)^2}/n
+    //1 MAE Error = SUM{|guess - real|}/n
+
+
+    //2 MAPE Error = ((|guess - real| / |real|) * 100%)/n
+    pub fn mape(&self, real:Matrix) -> f64 {
+        let mut new = self.get(1,1) - real.get(1,1);
+        if new < 0 {-new/self.get(1, 1)} else if new > 0 {new/-self.get(1, 1)}
+        new
+    }
+
+    //3 BCEL Loss = real * log(guess) + (1 - real) * log(1 - guess) Binary output
+    pub fn bcel(&self, real:Matrix) -> f64 {
+        let new = (self.get(1,1).copy().ln() * real.get(1,1).copy()) + (1 - real.get(1,1).copy()) * (1-self.get(1,1).copy()).ln();
+        new
+    }
+    //4 CCEL Loss = - SUM{real[i] * log(guess[i])} ONLY WORKS WITH SOFTMAX ACTIVATION
+    pub fn ccel(&self, real:Matrix) -> f64 {
+        let mut sum = 0.0;;
+        for row in 0..self.rows {
+            for col in 0..self.cols {
+                sum += (real.get(row,col)  * self.get(row,col).ln())
+            }
+        }
+        -sum
+    }
+
+    //DERIVATIVES OF ABOVE FUNCTIONS
+    //0 MSE (2/n) * (guess - real)
+    //1 MAE 1 if guess > real, 0 if real > guess
+    //2 MAPE 1 / (n * guess) if guess > real, -1 / (n * guess) if real > guess
+    //3 BCEL -real / guess + (1 - real) / (1 - guess)
+    //4 CCEL guess - real
+
+
+
 }
 pub struct Layer {
     inputs: usize,
     outputs: usize,
-    function:i8, //0 for Relu, 1 for Leaky Relu, 2 for Sigmoid, 3 for Tanh, 4 for Softmax
+    function: i8, //0 for Relu, 1 for Leaky Relu, 2 for Sigmoid, 3 for Tanh, 4 for Softmax
     weights: Matrix,
-    bias: Matrix //i know you think this will be better as a vec, it wont,
-    // i have followed that thought train for hours and it always results in this needing to be a vec
+    bias: Matrix, //i know you think this will be better as a vec, it wont,
+    // i have followed that thought train for hours and it always results in this needing to be a Matrix
+    a: Option<f64>,
 }
 impl Layer {
     fn new(inputs:usize, outputs:usize, function:i8) -> Layer {
@@ -222,6 +355,9 @@ impl Layer {
         //we are keeping this matrix in its inverted form bc fuck writing a method that inverts a matrix
         let bias = Matrix::new(1, outputs); //same for this fucker bc it make the shit work
         Layer {inputs, outputs, function, weights, bias}
+    }
+    fn set_a(&mut self, a:f64) {
+        self.a = Some(a);
     }
     fn randomize(&mut self) -> bool {
         for output in 0..self.outputs {
@@ -239,7 +375,23 @@ impl Layer {
         output.add(input.clone())?.mul(self.weights.clone())?.add(self.bias.clone())?;
         Ok(output)
     }
-}
+    fn activation(&self, input: Matrix) -> Result<Matrix, Error> {
+        if self.function == 0 {output.relu()}
+        else if self.function == 1 {output.leaky_relu(self.a)}
+        else if self.function == 2 {output.sigmoid()}
+        else if self.function == 3 {output.tanh()}
+        else if self.function == 4 {output.softmax(self.a)}
+        else if self.function > 4 {Err(Error::SizeErr(format!("{} is too big when picking function", self.function)))}
+        else {Err(Error::ElseErr)}
+    }
+    fn gradient(&self, z: Matrix) -> Result<Vec<Box<Matrix>>, Error> {
+        let mut dz = vec![Matrix::new(self.weights.rows, self.weights.cols), Matrix::new(self.bias.rows, self.bias.cols)];
+        if self.function == 0 {let da = z.derv_relu();}
+        else if self.function == 1 {let da = z.derv_leaky_relu();}
+        else if self.function == 2 {let da = z.derv_sigmoid();}
+        else if self.function == 3 {let da = z.derv_tanh();}
+        else if self.function == 4 {let da = z.copy();}//this is tied into something else, i cant remember rn pls fix
+        else {Err(Error::ElseErr)}
 struct Model {
     inputs: usize,
     outputs: usize,
@@ -254,39 +406,38 @@ struct Model {
     //2 for Adaptive Gradient Algorithm (Adagrad), 3 for Root Mean Square Propogation (RMSprop)
     //4 for Adaptive Delta (AD), 5 for Adaptive Moment Estimation (Adam), 6 for Adamax,
     //7 for Nesterov Accelerated Gradient (NAG), 8 for Nesterov Adam (Nadam)
+    a:Option<f64>,
 }
 impl Model {
-    fn think(self, input: Matrix) -> Result<Model, Error> {
-        let mut output = Matrix::new(self.outputs, 1);
-        output = self.output.forward_prop(self.black_box(self.input.forward_prop(input)?))?;
-    }
-    pub fn black_box(self, input: Matrix) -> Result<Matrix, Error> {
-        let mut output = Matrix::new(input.rows, input.cols);
-        for layer in 0..self.layers-3 {
-            if layer = 0 {
-                output = self.hidden[layer].forward_prop(input.clone())?;
-            } else {
-                output = self.hidden[layer].forward_prop(output)?;
+    pub fn run(self, input: Matrix) -> Result<Vec<Box<dyn Matrix>>, Error> {
+        let mut za = vec![Box<dyn Matrix>];
+        za.push(self.input.forward_prop(input)?);
+        za.push(self.input.activation(za[0])?);
+        if self.layers > 2 {
+            for layer in 0..self.layers-3 {
+                za.push(self.hidden[layer].forward_prop(za[(layer*2)+1].clone())?);
+                za.push(self.hidden[(layer+1) * 2].activation(hidden_za[(layer+1) * 2].clone())?);
             }
         }
-        Ok(output)
+        if self.layers > 1 {
+            za.push(self.output.forward_prop(za[-1].clone())?);
+            za.push(self.output.activation(za[-1].clone())?);
+        }
+        Ok(za)
     }
-    pub fn train(&mut self, real: Matrix, guess: Matrix) -> bool {
+    fn set_a(&mut self, a:f64) {
+        self.a = Some(a);
+    }
+    pub fn loss(&mut self, real: Matrix, mut guess: Matrix) -> bool {
+        if self.loss == 2 {guess.mape(real)}
+        else if self.loss == 3 {guess.bcel(real)}
+        else if self.loss == 4 {guess = guess.ccel(real)}
+        else {Err(Error::ElseErr)}
 
     }
-    //0 MSE Error = SUM{(guess - real)^2}/n
-    //1 MAE Error = SUM{|guess - real|}/n
-    //2 MAPE Error = (|guess - real| / real) * 100%
-    //3 BCEL Loss = real * log(guess) + (1 - real) * log(1 - guess)
-    //4 CCEL Loss = - SUM{real[i] * log(guess[i])} ONLY WORKS WITH SOFTMAX ACTIVATION
-
-    //DERIVATIVES OF ABOVE FUNCTIONS
-    //0 MSE (2/n) * (guess - real)
-    //1 MAE 1 if guess > real, 0 if real > guess
-    //2 MAPE 1 / (n * guess) if guess > real, -1 / (n * guess) if real > guess
-    //3 BCEL -real / guess + (1 - real) / (1 - guess)
-    //4 CCEL guess - real
-
+    pub fn optimizer(&mut self, za : Vec<Box<dyn Matrix>>) {
+        if self.optimizer == 1 {}
+    }
     // a = alpha = learning rate(0 < float < 1 - closer to 1 = overstepping, closer to 0 = takes too long, commonly 0.001),
     // E = epsilon = divide by 0 prevention(positive float near 0, commonly 10^-8),
     // b = beta = decay(commonly 0.9 or 0.999)
@@ -298,6 +449,23 @@ impl Model {
 
     //0 GD i(t) = i(t-1) - (a * g) Once per Epoch
     //1 SGD i(t) = i(t-1) - (a * g) Once per Step in Epoch
+    pub fn sgd(&self, za: Vec<Box<dyn Matrix>>) -> bool {
+        for layer in 0..self.layers-1 {
+            if layer == 0 {
+                self.input.gradient
+            }
+            if self.layers-1 > 1 {
+                if layer >= 1 {
+
+                }
+            }
+            if self.layers-1 > 0 {
+                if layer == self.layers {
+
+                }
+            }
+        }
+    }
     //2 Adagrad i(t) = i(t-1) - (a / (sqrt{G[i]} + E)) * g(i(t-1))
         // G[i] += g(i)^2 every Epoch
     //3 RMSprop i(t) = i(t-1) - (a * g[i][t-1] / (sqrt{e_g[i]} + E)
